@@ -8,14 +8,14 @@
         tools:context=".MainActivity">
 
     <TextView
-            android:layout_width="292dp"
-            android:layout_height="117dp"
+            android:layout_width="381dp"
+            android:layout_height="110dp"
             android:text="00"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintTop_toTopOf="parent" app:layout_constraintVertical_bias="0.098"
-            android:id="@+id/txtDistance" android:textSize="96sp" tools:textAlignment="center"/>
+            android:id="@+id/txtDistance" android:textSize="64sp" tools:textAlignment="center"/>
     <Button
             android:text="Stop Ranging"
             android:layout_width="wrap_content"
@@ -83,5 +83,14 @@
             app:layout_constraintTop_toTopOf="parent" app:layout_constraintEnd_toEndOf="parent"
             android:layout_marginEnd="8dp" app:layout_constraintStart_toStartOf="parent"
             android:layout_marginStart="8dp"/>
+    <Button
+            android:text="Bluetooth Connect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/btnServer" app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="8dp"
+            app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="8dp" android:layout_marginBottom="8dp"
+            app:layout_constraintBottom_toTopOf="@+id/btnStopRange" android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@+id/txtNetwork5" app:layout_constraintHorizontal_bias="0.498"
+            app:layout_constraintVertical_bias="0.696"/>
 
 </android.support.constraint.ConstraintLayout>

@@ -1,13 +1,15 @@
 package com.example.wifiranger
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.*
-import android.net.wifi.ScanResult
-import android.net.wifi.WifiManager
 import android.net.wifi.aware.*
 import android.net.wifi.rtt.RangingRequest
 import android.net.wifi.rtt.RangingResult
@@ -18,10 +20,20 @@ import android.os.Bundle
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import kotlinx.android.synthetic.main.activity_main.*
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 
 class MainActivity : AppCompatActivity() {
 
     val self = this
+
+    //Bluetooth Declarations
+    private var outStream: OutputStream? = null
+    private var inStream: InputStream? = null
+    val blueAdapter = BluetoothAdapter.getDefaultAdapter()
+    val NAME = "ServerPOS"
+    val UUID = java.util.UUID.fromString("08794f7e-8d41-47f2-ad9d-be7e696884ca")
 
     //Range Loop
     var isRanging: Boolean = false
@@ -36,18 +48,22 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        btnPublish.setOnClickListener(){
+        btnPublish.setOnClickListener{
             pubsub = 0
             wifiAwareAttach(pubsub)
         }
 
-        btnSubscribe.setOnClickListener(){
+        btnSubscribe.setOnClickListener{
             pubsub = 1
             wifiAwareAttach(pubsub)
         }
 
-        btnStopRange.setOnClickListener(){
+        btnStopRange.setOnClickListener{
             isRanging = false
+        }
+
+        btnServer.setOnClickListener{
+            serverSetup()
         }
     }
 
@@ -100,7 +116,6 @@ class MainActivity : AppCompatActivity() {
             .setServiceName("JoshPub")
             .setRangingEnabled(true)
             .setTerminateNotificationEnabled(true)
-            //.setTtlSec(0)
             .setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
             .build()
 
@@ -112,7 +127,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onMessageReceived(peerHandle: PeerHandle?, message: ByteArray?) {
                 super.onMessageReceived(peerHandle, message)
-                val peertest = peerHandle
             }
         }, null)
     }
@@ -126,7 +140,6 @@ class MainActivity : AppCompatActivity() {
             .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
             .setTerminateNotificationEnabled(true)
             .setMinDistanceMm(0)
-            //.setTtlSec(60)
             .build()
 
         awareSession.subscribe(config,object:DiscoverySessionCallback(){
@@ -143,10 +156,8 @@ class MainActivity : AppCompatActivity() {
                 distanceMm: Int
             ) {
                 super.onServiceDiscoveredWithinRange(peerHandle, serviceSpecificInfo, matchFilter, distanceMm)
-
                 isRanging = true
-
-                rangeStart(peerHandle)
+                rangeStart(peerHandle) //Begin Ranging
             }
 
             override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray?) {
@@ -202,53 +213,16 @@ class MainActivity : AppCompatActivity() {
         }, null)
     }
 
-
-    //80211mc Check
-    private fun scan80211mc(){
-
-        if(!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT)){
-            return
-        }
-        val wifiManager = this.getSystemService((Context.WIFI_SERVICE)) as WifiManager
-
-        val wifiScanReceiver = object:BroadcastReceiver(){
-
-            override fun onReceive(context: Context, intent: Intent) {
-                val success = intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)
-                if(success) {
-                    //scanSuccess()
-                } else {
-                    //scanFailure()
-                }
-            }
-        }
-
-        val intentFilter = IntentFilter()
-        intentFilter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
-        this.registerReceiver(wifiScanReceiver, intentFilter)
-
-        val success2 = wifiManager.startScan()
-
-        val scanResult: MutableList<ScanResult> = wifiManager.scanResults
-        for (i in scanResult.indices){
-            if (!wifiManager.scanResults[i].is80211mcResponder){
-                //scanResult.removeAt(i)
-            } else{
-                val testScan = scanResult[i].SSID
-            }
-      }
-        val testFail = scanResult
-    }
-
     //WIFI RTT Ranging
     private fun rangeStart(peerHandle: PeerHandle){
-        val peerTest = peerHandle
+
+        //RTT Check
         if(packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT)){
             val wifiRttManager = this.getSystemService(Context.WIFI_RTT_RANGING_SERVICE) as WifiRttManager
             Log.d("RTTService", wifiRttManager.isAvailable.toString())
             val filter = IntentFilter(WifiRttManager.ACTION_WIFI_RTT_STATE_CHANGED)
             val myReceiver = object: BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
+                override fun onReceive(context: Context, intent: Intent) { //Is onReceive necessary???
 //                    if (wifiRttManager.isAvailable) {
 //                        Log.d("RTTService", wifiRttManager.isAvailable.toString())
 //                        val request: RangingRequest = RangingRequest.Builder().run {
@@ -273,24 +247,24 @@ class MainActivity : AppCompatActivity() {
 //                    } else {
 //
 //                    }
-                    }
+                    } //Is this necessary??
                 }
             this.registerReceiver(myReceiver, filter)
 
             if (wifiRttManager.isAvailable) {
                 Log.d("RTTService", wifiRttManager.isAvailable.toString())
                 val request: RangingRequest = RangingRequest.Builder().run {
-                    addWifiAwarePeer(peerHandle)
+                    addWifiAwarePeer(peerHandle) //add WiFi Aware peer
                     build()
                 }
                 if(ContextCompat.checkSelfPermission(self, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     wifiRttManager.startRanging(request, mainExecutor, object : RangingResultCallback() {
                         override fun onRangingResults(results: List<RangingResult>) {
                             for (result in results){
-                                val blah = result.peerHandle
 
                                 //Update Distance, don't crash
                                 if(result.status == 0) {
+                                    //**WRITE BLUETOOTH HERE
                                     txtDistance.text = result.distanceMm.toString()
                                 } else {
                                     val breakme = result
@@ -308,12 +282,105 @@ class MainActivity : AppCompatActivity() {
                         }
                     })
                 }
-
             } else {
+            }
+            }
+        }
 
+    //Bluetooth - Client Connect
+    @Throws(IOException::class)
+    private fun clientConnect() {
+        if (blueAdapter != null) {
+            if (blueAdapter.isEnabled) {
+                val bondedDevices = blueAdapter.bondedDevices
+
+                if (bondedDevices.size > 0) {
+                    val MY_UUID = UUID
+                    val devices = bondedDevices.toTypedArray() as Array<Any>
+                    val device = devices[0] as BluetoothDevice
+                    val uuids = device.uuids
+                    var socket = device.createRfcommSocketToServiceRecord(MY_UUID)
+
+                    try {
+                        socket.connect()
+                        Log.e("", "Connected")
+                    } catch (e: IOException) {
+                        Log.e("", e.message)
+                        try {
+                            Log.e("", "trying fallback...")
+
+                            socket = device.javaClass.getMethod(
+                                "createRfcommSocket",
+                                *arrayOf<Class<*>>(Int::class.javaPrimitiveType!!)
+                            ).invoke(device, 2) as BluetoothSocket
+                            socket.connect()
+                            val testsocket = socket
+                            Log.e("", "Connected")
+                        } catch (e2: Exception) {
+                            Log.e("", "Couldn't establish Bluetooth connection!")
+                        }
+
+                    }
+                    readBuffer(socket) //Read incoming socket data
+                }
+            } else {
+                Log.e("error", "Bluetooth is disabled.")
+            }
+        }
+    }
+
+    //Bluetooth - Read incoming buffer stream
+    private fun readBuffer(s: BluetoothSocket){
+        val mmInStream: InputStream = s.inputStream
+        val mmBuffer: ByteArray = ByteArray(1024) // mmBuffer store for the stream
+        var numBytes: Int // bytes returned from read()
+
+        // Listen for Input Stream
+        while (true) {
+            numBytes = try {
+                mmInStream.read(mmBuffer)
+            } catch (e: IOException) {
+                //Log.d(TAG, "Input stream was disconnected", e)
+                break
             }
 
-            }
+            // Parse buffer and update UI
+            val readMsg = mmBuffer.toString()
 
         }
     }
+
+    //Bluetooth - Setup Server
+    private fun serverSetup() {
+
+        var socket: BluetoothSocket?= null
+        val mmServerSocket: BluetoothServerSocket? by lazy(LazyThreadSafetyMode.NONE) { //Bluetooth Server Socket Setup
+            blueAdapter?.listenUsingInsecureRfcommWithServiceRecord(NAME, UUID)
+        }
+
+        // Listen for Socket
+        var shouldLoop = true
+        while (shouldLoop) {
+            socket = try {
+                mmServerSocket?.accept() //Accept Socket, create connection
+            } catch (e: IOException) {
+                //Log.e(TAG, "Socket's accept() method failed", e)
+                shouldLoop = false
+                null
+            }
+            socket?.also {
+                //manageMyConnectedSocket(it)
+                mmServerSocket?.close()
+                shouldLoop = false
+            }
+        }
+
+        //Declare Output Stream
+        outStream = socket?.outputStream
+
+        val teststring = "butt" //**REPLACE WITH DISTANCEmm + #
+        while(true) {
+            outStream!!.write(teststring.toByteArray(charset("UTF-8")) + "#".toByteArray(charset("UTF-8")))
+        }
+    }
+}
