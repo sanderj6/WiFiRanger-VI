@@ -15,9 +15,9 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent" app:layout_constraintVertical_bias="0.718"
+            app:layout_constraintTop_toTopOf="parent" app:layout_constraintVertical_bias="0.739"
             android:id="@+id/txtDistance" android:textSize="64sp" tools:textAlignment="center"
-            app:layout_constraintHorizontal_bias="0.528" android:layout_marginLeft="32dp"
+            app:layout_constraintHorizontal_bias="0.513" android:layout_marginLeft="32dp"
             android:layout_marginRight="32dp"/>
     <TextView
             android:text="DISTANCE"
@@ -26,83 +26,79 @@
             android:id="@+id/txtDistView"
             app:layout_constraintEnd_toEndOf="parent"
             android:layout_marginEnd="8dp" app:layout_constraintStart_toStartOf="parent"
-            android:layout_marginStart="8dp" app:layout_constraintHorizontal_bias="0.534"
+            android:layout_marginStart="8dp" app:layout_constraintHorizontal_bias="0.498"
             android:layout_marginTop="4dp" app:layout_constraintTop_toBottomOf="@+id/txtDistance"
-            android:layout_marginBottom="164dp" app:layout_constraintBottom_toBottomOf="parent"/>
+            android:layout_marginBottom="164dp" app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintVertical_bias="0.111"/>
     <Switch
-            android:text="Visually Impaired Athlete      "
+            android:text="VI Athlete  "
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:id="@+id/pubSwitch" app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="36dp"
+            android:id="@+id/pubSwitch"
             app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="36dp"
-            android:layout_marginTop="275dp" app:layout_constraintTop_toTopOf="parent"/>
+            android:textSize="24sp"
+            app:layout_constraintEnd_toStartOf="@+id/subSwitch"
+            android:layout_marginEnd="8dp" android:layout_marginTop="256dp" app:layout_constraintTop_toTopOf="parent"/>
     <Switch
-            android:text="Guide     "
-            android:layout_width="wrap_content"
-            android:layout_height="23dp"
-            android:id="@+id/subSwitch" app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="36dp"
-            app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="36dp"
-            android:layout_marginTop="236dp" app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintHorizontal_bias="0.508"/>
+            android:text="Guide  "
+            android:layout_width="118dp"
+            android:layout_height="32dp"
+            android:id="@+id/subSwitch"
+            android:layout_marginTop="256dp" app:layout_constraintTop_toTopOf="parent"
+            android:textSize="24sp" android:layout_marginEnd="64dp" app:layout_constraintEnd_toEndOf="parent"/>
     <Switch
             android:text="Audible Feedback      "
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/audioSwitch" app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="36dp"
             app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="36dp"
-            app:layout_constraintHorizontal_bias="0.508" android:layout_marginTop="16dp"
-            app:layout_constraintTop_toBottomOf="@+id/pubSwitch"/>
-    <Switch
-            android:text="Smart Glasses      "
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/glassesSwitch" app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="36dp"
-            app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="36dp"
-            app:layout_constraintHorizontal_bias="0.502"
-            android:layout_marginTop="16dp" app:layout_constraintTop_toBottomOf="@+id/audioSwitch"/>
+            app:layout_constraintHorizontal_bias="0.467"
+            app:layout_constraintTop_toBottomOf="@+id/pubStatus" android:layout_marginTop="36dp"/>
     <Switch
             android:text="Debug      "
             android:layout_width="wrap_content"
             android:layout_height="27dp"
             android:id="@+id/debugSwitch" app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="36dp"
             app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="36dp"
-            app:layout_constraintHorizontal_bias="0.505"
-            android:layout_marginTop="16dp" app:layout_constraintTop_toBottomOf="@+id/glassesSwitch"
-            android:checked="true"/>
+            app:layout_constraintHorizontal_bias="0.481"
+            android:checked="true" android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@+id/audioSwitch"/>
+    <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/subStatus"
+            android:text="Status"
+            app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="64dp"
+            app:layout_constraintTop_toBottomOf="@+id/subSwitch"
+            android:layout_marginTop="8dp"/>
     <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/pubStatus"
-            app:layout_constraintStart_toEndOf="@+id/pubSwitch" android:layout_marginStart="16dp"
-            android:layout_marginTop="280dp"
-            app:layout_constraintTop_toTopOf="parent" android:text="Status"/>
+            android:text="Status" android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@+id/pubSwitch"
+            app:layout_constraintEnd_toStartOf="@+id/subStatus"
+            android:layout_marginEnd="100dp"/>
     <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/audibleStatus"
             android:text="Status"
-            app:layout_constraintStart_toEndOf="@+id/audioSwitch" android:layout_marginStart="16dp"
-            android:layout_marginTop="24dp" app:layout_constraintTop_toBottomOf="@+id/pubStatus"/>
-    <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/glassesStatus"
-            android:text="Status"
-            app:layout_constraintStart_toEndOf="@+id/glassesSwitch" android:layout_marginStart="16dp"
-            android:layout_marginTop="24dp" app:layout_constraintTop_toBottomOf="@+id/audibleStatus"/>
-    <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/debugStatus"
-            android:text="Status"
-            app:layout_constraintStart_toEndOf="@+id/debugSwitch" android:layout_marginStart="16dp"
-            android:layout_marginTop="24dp" app:layout_constraintTop_toBottomOf="@+id/glassesStatus"/>
+            app:layout_constraintStart_toEndOf="@+id/audioSwitch" android:layout_marginStart="8dp"
+            app:layout_constraintTop_toBottomOf="@+id/subStatus" android:layout_marginTop="40dp"/>
     <TextView
             android:text="m"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/textUnit" app:layout_constraintStart_toEndOf="@+id/txtDistance"
-            android:layout_marginBottom="188dp"
+            android:layout_marginBottom="172dp"
             app:layout_constraintBottom_toBottomOf="parent" android:textSize="36sp"/>
+    <Button
+            android:text="EXIT"
+            android:layout_width="67dp"
+            android:layout_height="46dp"
+            android:id="@+id/btn_Exit"
+            app:layout_constraintStart_toStartOf="parent" android:layout_marginStart="8dp"
+            android:layout_marginBottom="8dp" app:layout_constraintBottom_toBottomOf="parent"/>
 
 </android.support.constraint.ConstraintLayout>

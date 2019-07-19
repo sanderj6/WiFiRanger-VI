@@ -1,7 +1,6 @@
 package com.example.wifiranger
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
@@ -17,26 +16,29 @@ import android.net.wifi.rtt.RangingResultCallback
 import android.net.wifi.rtt.WifiRttManager
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
-import android.support.annotation.VisibleForTesting
+import android.os.Handler
 import android.support.v4.content.ContextCompat
 import android.util.Log
 import android.view.View.INVISIBLE
 import android.view.View.VISIBLE
+import android.view.WindowManager
 import kotlinx.android.synthetic.main.activity_main.*
+import org.jetbrains.anko.doAsync
 import java.io.IOException
-import java.io.InputStream
 import java.io.OutputStream
+import java.util.*
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(){
 
     val self = this
 
     //Bluetooth Declarations
     private var outStream: OutputStream? = null
-    private var inStream: InputStream? = null
     val blueAdapter = BluetoothAdapter.getDefaultAdapter()
     val NAME = "ServerPOS"
     val UUID = java.util.UUID.fromString("08794f7e-8d41-47f2-ad9d-be7e696884ca")
+    var newDistance = 0
+    var oldDistance = 0
 
     //Range Loop
     var isRanging: Boolean = false
@@ -45,11 +47,22 @@ class MainActivity : AppCompatActivity() {
     var pubDiscoverySession: PublishDiscoverySession ?= null
     var subDiscoverySession: SubscribeDiscoverySession ?= null
 
+    //WifiAware Session
+    var awareSession: WifiAwareSession? = null
+    var wifiAwarePeerHandle: PeerHandle ?= null
+
+    //Bluetooth Session
+    var socket: BluetoothSocket?= null
+
     var pubsub: Int = 0
+    var audioCheck: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        callAsynchronousRanging()
 
         pubSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -57,36 +70,122 @@ class MainActivity : AppCompatActivity() {
                 pubsub = 0
                 subDiscoverySession?.close()
                 wifiAwareAttach(pubsub)
+            } else{
+                pubDiscoverySession?.close()
+                pubStatus.text = "Disconnected"
             }
         }
 
         subSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                //PUBLISH
+                //SUBSCRIBE
                 pubsub = 1
                 pubDiscoverySession?.close()
                 wifiAwareAttach(pubsub)
             } else {
+                subDiscoverySession?.close()
+                subStatus.text = "Disconnected"
             }
+        }
+
+        audioSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                audioCheck = 1
+            }
+
         }
 
         debugSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 //Turn on Debugging messages
-                pubStatus.visibility = VISIBLE
+                subStatus.visibility = VISIBLE
                 audibleStatus.visibility = VISIBLE
-                glassesStatus.visibility = VISIBLE
-                debugStatus.visibility = VISIBLE
-
             } else {
                 //Turn off Debugging messages
-                pubStatus.visibility = INVISIBLE
+                subStatus.visibility = INVISIBLE
                 audibleStatus.visibility = INVISIBLE
-                glassesStatus.visibility = INVISIBLE
-                debugStatus.visibility = INVISIBLE
-
             }
         }
+
+        btn_Exit.setOnClickListener(){
+            subDiscoverySession?.close()
+            awareSession?.close()
+            outStream?.close()
+            socket?.close()
+
+            finish()
+        }
+    }
+
+    override fun onDestroy() {
+        subDiscoverySession?.close()
+        awareSession?.close()
+        outStream?.close()
+        socket?.close()
+
+
+        super.onDestroy()
+    }
+
+    //Async Audio Feedback
+    fun callAsynchronousTask() {
+        val handler = Handler()
+        val timer = Timer()
+        var audioMessage = ""
+        val doAsynchronousTask = object : TimerTask() {
+            override fun run() {
+                handler.post(Runnable {
+                    try {
+                        doAsync{
+                            audioMessage = newDistance.toString() + " meters"
+
+                            if (newDistance != oldDistance) {
+                                TTS(this@MainActivity, audioMessage, audioSwitch.isChecked)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // TODO Auto-generated catch block
+                        val testbreak = "butt"
+                    }
+                })
+            }
+        }
+        timer.schedule(doAsynchronousTask, 0, 3000) //execute in every 1000 ms
+    }
+
+    //Async Bluetooth Writing and Audio Feedback
+    fun callAsynchronousRanging() {
+        val handler = Handler()
+        val timer = Timer()
+        var audioMessage = ""
+
+        val doAsynchronousRangingTask = object : TimerTask() {
+            override fun run() {
+                handler.post(Runnable {
+                    try {
+                        doAsync{
+
+                            if (newDistance != oldDistance) { //check if distance has been updated
+                                txtDistance.text = newDistance.toString()
+                                audibleStatus.text = audioMessage
+
+                                outStream!!.write(newDistance)
+                                oldDistance = newDistance
+
+                                if (audioCheck == 1){
+                                    audioMessage = newDistance.toString() + " meters"
+                                    TTS(this@MainActivity, audioMessage, audioSwitch.isChecked)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // TODO Auto-generated catch block
+                        val testbreak = "butt"
+                    }
+                })
+            }
+        }
+        timer.schedule(doAsynchronousRangingTask, 0, 500) //execute in every 500 ms
     }
 
     //WiFiAwareAttach
@@ -116,7 +215,7 @@ class MainActivity : AppCompatActivity() {
         //ATTACH AWARE
         wifiAwareManager.attach(object:AttachCallback(){
             override fun onAttached(session:WifiAwareSession){
-                val awareSession: WifiAwareSession = session //make this class-level?
+                awareSession = session //make this class-level?
 
                 //pubsub Check
                 if(pubsub ==0){
@@ -132,7 +231,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     //Publisher
-    private fun attachPublisher(awareSession: WifiAwareSession){
+    private fun attachPublisher(awareSession: WifiAwareSession?){
 
         //CONFIG
         val config: PublishConfig = PublishConfig.Builder()
@@ -142,10 +241,11 @@ class MainActivity : AppCompatActivity() {
             .setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
             .build()
 
-        awareSession.publish(config,object:DiscoverySessionCallback(){
+        awareSession?.publish(config,object:DiscoverySessionCallback(){
             override fun onPublishStarted(session: PublishDiscoverySession) {
                 super.onPublishStarted(session)
                 pubDiscoverySession = session
+                pubStatus.text = "Connected"
             }
 
             override fun onMessageReceived(peerHandle: PeerHandle?, message: ByteArray?) {
@@ -155,7 +255,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     //Subscriber
-    private fun attachSubscriber(awareSession: WifiAwareSession){
+    private fun attachSubscriber(awareSession: WifiAwareSession?){
 
         //CONFIG
         val config: SubscribeConfig = SubscribeConfig.Builder()
@@ -165,7 +265,7 @@ class MainActivity : AppCompatActivity() {
             .setMinDistanceMm(0)
             .build()
 
-        awareSession.subscribe(config,object:DiscoverySessionCallback(){
+        awareSession?.subscribe(config,object:DiscoverySessionCallback(){
 
             override fun onSubscribeStarted(session: SubscribeDiscoverySession) {
                 super.onSubscribeStarted(session)
@@ -180,9 +280,9 @@ class MainActivity : AppCompatActivity() {
             ) {
                 super.onServiceDiscoveredWithinRange(peerHandle, serviceSpecificInfo, matchFilter, distanceMm)
                 isRanging = true
+                subStatus.text = "Connected"
 
-                //call bluetooth setup here?
-                bluetoothServerSetup(peerHandle)
+                bluetoothServerSetup(peerHandle) //Connect Bluetooth
             }
 
             override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray?) {
@@ -240,7 +340,6 @@ class MainActivity : AppCompatActivity() {
     //Bluetooth - Setup Server
     private fun bluetoothServerSetup(peerHandle: PeerHandle) {
 
-        var socket: BluetoothSocket?= null
         val mmServerSocket: BluetoothServerSocket? by lazy(LazyThreadSafetyMode.NONE) { //Bluetooth Server Socket Setup
             blueAdapter?.listenUsingInsecureRfcommWithServiceRecord(NAME, UUID)
         }
@@ -278,11 +377,14 @@ class MainActivity : AppCompatActivity() {
             val wifiRttManager = this.getSystemService(Context.WIFI_RTT_RANGING_SERVICE) as WifiRttManager
             Log.d("RTTService", wifiRttManager.isAvailable.toString())
             val filter = IntentFilter(WifiRttManager.ACTION_WIFI_RTT_STATE_CHANGED)
-            val myReceiver = object: BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) { //Is onReceive necessary???
-                    }
-                }
-            this.registerReceiver(myReceiver, filter)
+
+//            val myReceiver = object: BroadcastReceiver() {
+//                override fun onReceive(context: Context, intent: Intent) { //Is onReceive necessary???
+//                    val test69 = context
+//                    }
+//                }
+//            this.registerReceiver(myReceiver, filter)
+//            this.unregisterReceiver(myReceiver)
 
             if (wifiRttManager.isAvailable) {
                 Log.d("RTTService", wifiRttManager.isAvailable.toString())
@@ -290,6 +392,7 @@ class MainActivity : AppCompatActivity() {
                     addWifiAwarePeer(peerHandle) //add WiFi Aware peer
                     build()
                 }
+
                 if(ContextCompat.checkSelfPermission(self, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     wifiRttManager.startRanging(request, mainExecutor, object : RangingResultCallback() {
                         override fun onRangingResults(results: List<RangingResult>) {
@@ -298,9 +401,10 @@ class MainActivity : AppCompatActivity() {
                                 //Update Distance, don't crash
                                 if(result.status == 0) {
                                     //**WRITE BLUETOOTH HERE
-                                    val newDistance = result.distanceMm / 2000
+                                    newDistance = result.distanceMm / 2000
                                     txtDistance.text = newDistance.toString()
                                     outStream!!.write(newDistance)
+                                    //outStream!!.flush()
                                 } else {
                                     val breakme = result
                                 }
@@ -314,76 +418,11 @@ class MainActivity : AppCompatActivity() {
 
                         override fun onRangingFailure(code: Int) {
                             Log.e("Error!", code.toString())
+                            rangeStart(peerHandle, outputStream)
                         }
                     })
                 }
-            } else {
-            }
-            }
-        }
-
-    //Bluetooth - Client Connect
-    @Throws(IOException::class)
-    private fun clientConnect() {
-        if (blueAdapter != null) {
-            if (blueAdapter.isEnabled) {
-                val bondedDevices = blueAdapter.bondedDevices
-
-                if (bondedDevices.size > 0) {
-                    val MY_UUID = UUID
-                    val devices = bondedDevices.toTypedArray() as Array<Any>
-                    val device = devices[0] as BluetoothDevice
-                    val uuids = device.uuids
-                    var socket = device.createRfcommSocketToServiceRecord(MY_UUID)
-
-                    try {
-                        socket.connect()
-                        Log.e("", "Connected")
-                    } catch (e: IOException) {
-                        Log.e("", e.message)
-                        try {
-                            Log.e("", "trying fallback...")
-
-                            socket = device.javaClass.getMethod(
-                                "createRfcommSocket",
-                                *arrayOf<Class<*>>(Int::class.javaPrimitiveType!!)
-                            ).invoke(device, 2) as BluetoothSocket
-                            socket.connect()
-                            val testsocket = socket
-                            Log.e("", "Connected")
-                        } catch (e2: Exception) {
-                            Log.e("", "Couldn't establish Bluetooth connection!")
-                        }
-
-                    }
-                    readBuffer(socket) //Read incoming socket data
-                }
-            } else {
-                Log.e("error", "Bluetooth is disabled.")
             }
         }
     }
-
-    //Bluetooth - Read incoming buffer stream
-    private fun readBuffer(s: BluetoothSocket){
-        val mmInStream: InputStream = s.inputStream
-        val mmBuffer: ByteArray = ByteArray(1024) // mmBuffer store for the stream
-        var numBytes: Int // bytes returned from read()
-
-        // Listen for Input Stream
-        while (true) {
-            numBytes = try {
-                mmInStream.read(mmBuffer)
-            } catch (e: IOException) {
-                //Log.d(TAG, "Input stream was disconnected", e)
-                break
-            }
-
-            // Parse buffer and update UI
-            val readMsg = mmBuffer.toString()
-
-        }
-    }
-
-
 }
