@@ -280,76 +280,93 @@ class MainActivity : AppCompatActivity(){
             .setMinDistanceMm(0)
             .build()
 
-        awareSession?.subscribe(config,object:DiscoverySessionCallback(){
+        try {
+            awareSession?.subscribe(config, object : DiscoverySessionCallback() {
 
-            override fun onSubscribeStarted(session: SubscribeDiscoverySession) {
-                super.onSubscribeStarted(session)
-                subDiscoverySession = session
-            }
-
-            override fun onServiceDiscoveredWithinRange(
-                peerHandle: PeerHandle,
-                serviceSpecificInfo: ByteArray?,
-                matchFilter: MutableList<ByteArray>?,
-                distanceMm: Int
-            ) {
-                super.onServiceDiscoveredWithinRange(peerHandle, serviceSpecificInfo, matchFilter, distanceMm)
-                isRanging = true
-                subStatus.text = "Connected"
-
-                bluetoothServerSetup(peerHandle) //Connect Bluetooth
-            }
-
-            override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray?) {
-                super.onMessageReceived(peerHandle, message)
-
-                //Network Request
-                val networkConnectManager = self.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                var myNetworkRequest: NetworkRequest = NetworkRequest.Builder()
-                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE)
-                    .setNetworkSpecifier(subDiscoverySession?.createNetworkSpecifierOpen(peerHandle))
-                    .build()
-
-                val callback = object:ConnectivityManager.NetworkCallback(){
-
-                    override fun onAvailable(network: Network?) {
-                        super.onAvailable(network)
-                        rangeStart(peerHandle, outStream)
-                    }
-
-                    override fun onLinkPropertiesChanged(network: Network?, linkProperties: LinkProperties?) {
-                        super.onLinkPropertiesChanged(network, linkProperties)
-                    }
-
-                    override fun onLost(network: Network?) {
-                        super.onLost(network)
-                    }
-
-                    override fun onUnavailable() {
-                        super.onUnavailable()
-                    }
+                override fun onSubscribeStarted(session: SubscribeDiscoverySession) {
+                    super.onSubscribeStarted(session)
+                    subDiscoverySession = session
                 }
 
-                networkConnectManager.activeNetwork
-                networkConnectManager.requestNetwork(myNetworkRequest,callback)
+                override fun onServiceDiscoveredWithinRange(
+                    peerHandle: PeerHandle,
+                    serviceSpecificInfo: ByteArray?,
+                    matchFilter: MutableList<ByteArray>?,
+                    distanceMm: Int
+                ) {
+                    super.onServiceDiscoveredWithinRange(peerHandle, serviceSpecificInfo, matchFilter, distanceMm)
+                    isRanging = true
+                    subStatus.text = "Connected"
 
+                    bluetoothServerSetup(peerHandle) //Connect Bluetooth
+                }
+
+                override fun onMessageReceived(peerHandle: PeerHandle, message: ByteArray?) {
+                    super.onMessageReceived(peerHandle, message)
+
+                    //Network Request
+                    val networkConnectManager =
+                        self.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    var myNetworkRequest: NetworkRequest = NetworkRequest.Builder()
+                        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE)
+                        .setNetworkSpecifier(subDiscoverySession?.createNetworkSpecifierOpen(peerHandle))
+                        .build()
+
+                    val callback = object : ConnectivityManager.NetworkCallback() {
+
+                        override fun onAvailable(network: Network?) {
+                            super.onAvailable(network)
+                            rangeStart(peerHandle, outStream)
+                        }
+
+                        override fun onLinkPropertiesChanged(network: Network?, linkProperties: LinkProperties?) {
+                            super.onLinkPropertiesChanged(network, linkProperties)
+                        }
+
+                        override fun onLost(network: Network?) {
+                            super.onLost(network)
+                        }
+
+                        override fun onUnavailable() {
+                            super.onUnavailable()
+                        }
+                    }
+
+                    networkConnectManager.activeNetwork
+                    networkConnectManager.requestNetwork(myNetworkRequest, callback)
+
+                }
+
+                override fun onServiceDiscovered(
+                    peerHandle: PeerHandle,
+                    serviceSpecificInfo: ByteArray,
+                    matchFilter: List<ByteArray>
+                ) {
+                    super.onServiceDiscovered(peerHandle, serviceSpecificInfo, matchFilter)
+
+                    //Send SUBSCRIBER message to PUBLISHER
+                    val msgId = 69
+                    val matchByte = matchFilter
+                    val msgByte = byteArrayOf(-0x80, -0x79, 0x00, 0x79)
+                    subDiscoverySession?.sendMessage(
+                        peerHandle,
+                        msgId,
+                        msgByte
+                    ) //is the subdiscoverysession = session or null?
+
+                }
+            }, null)
+        }
+        catch (e: Exception)
+        {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+                // Permission is not granted
+                this.requestPermissions(arrayOf(android.Manifest.permission.ACCESS_COARSE_LOCATION, android.Manifest.permission.ACCESS_FINE_LOCATION), 1)
             }
-
-            override fun onServiceDiscovered(
-                peerHandle: PeerHandle,
-                serviceSpecificInfo: ByteArray,
-                matchFilter: List<ByteArray>
-            ) {
-                super.onServiceDiscovered(peerHandle, serviceSpecificInfo, matchFilter)
-
-                //Send SUBSCRIBER message to PUBLISHER
-                val msgId = 69
-                val matchByte = matchFilter
-                val msgByte = byteArrayOf(-0x80, -0x79, 0x00, 0x79)
-                subDiscoverySession?.sendMessage(peerHandle,msgId,msgByte) //is the subdiscoverysession = session or null?
-
-            }
-        }, null)
+        }
     }
 
     //Bluetooth - Setup Server
@@ -360,7 +377,7 @@ class MainActivity : AppCompatActivity(){
         }
 
         // Listen for Socket
-        var shouldLoop = true
+        var shouldLoop = false // Set this back to true, just want to skip the BT part right now
         while (shouldLoop) {
             socket = try {
                 mmServerSocket?.accept() //Accept Socket, create connection
@@ -414,11 +431,14 @@ class MainActivity : AppCompatActivity(){
                             for (result in results){
 
                                 //Update Distance, don't crash
-                                if(result.status == 0) {
+                                if(result.status == RangingResult.STATUS_SUCCESS) {
                                     //**WRITE BLUETOOTH HERE
                                     newDistance = result.distanceMm / 2000
                                     txtDistance.text = newDistance.toString()
-                                    outStream!!.write(newDistance)
+                                    if (outStream != null)
+                                    {
+                                        outStream!!.write(newDistance)
+                                    }
                                     //outStream!!.flush()
                                 } else {
                                     val breakme = result
