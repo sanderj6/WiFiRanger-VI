@@ -30,6 +30,9 @@ import java.util.*
 
 // Constants
 const val SERVICE_NAME: String = "ranger"
+const val RANGE_RESULT_HISTORY_SIZE = 500
+const val SMALL_MEAN_SIZE = 5
+const val LARGE_MEAN_SIZE = 50
 
 class MainActivity : AppCompatActivity(){
 
@@ -60,6 +63,8 @@ class MainActivity : AppCompatActivity(){
 
     var isPublisher: Boolean = true
     var audioCheck: Int = 0
+
+    private var prevRangeVals:MutableList<Int> = mutableListOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -433,8 +438,22 @@ class MainActivity : AppCompatActivity(){
                                 //Update Distance, don't crash
                                 if(result.status == RangingResult.STATUS_SUCCESS) {
                                     //**WRITE BLUETOOTH HERE
-                                    newDistance = result.distanceMm / 2000
+                                    newDistance = result.distanceMm// / 2000
+
+                                    if (prevRangeVals.size >= RANGE_RESULT_HISTORY_SIZE)
+                                    {
+                                        prevRangeVals.removeAt(0)
+                                    }
+                                    prevRangeVals.add(newDistance)
+
+
+
+
+
+
                                     txtDistance.text = newDistance.toString()
+                                    txtDistanceSmallMean.text = PrevRangeValsAvgOfTop(SMALL_MEAN_SIZE).toString()
+                                    txtDistanceLargeMean.text = PrevRangeValsAvgOfTop(LARGE_MEAN_SIZE).toString()
                                     if (outStream != null)
                                     {
                                         outStream!!.write(newDistance)
@@ -459,5 +478,26 @@ class MainActivity : AppCompatActivity(){
                 }
             }
         }
+    }
+
+    // Returns the average of the values in PrevRangeResults
+    // Only returns the average of the most recent values, up to a maximum of the provided count
+    private fun PrevRangeValsAvgOfTop(count: Int) : Int
+    {
+        var numToAvg = this.prevRangeVals.size
+        if (count < numToAvg)
+        {
+            numToAvg = count
+        }
+
+        var sum = 0
+        var i = this.prevRangeVals.size - numToAvg
+        while (i < this.prevRangeVals.size)
+        {
+            sum += this.prevRangeVals[i]
+            i++
+        }
+
+        return (sum / numToAvg)
     }
 }
