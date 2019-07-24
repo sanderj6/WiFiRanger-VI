@@ -28,9 +28,13 @@ import java.io.IOException
 import java.io.OutputStream
 import java.util.*
 
+// Constants
+const val SERVICE_NAME: String = "ranger"
+
 class MainActivity : AppCompatActivity(){
 
     val self = this
+
 
     //Bluetooth Declarations
     private var outStream: OutputStream? = null
@@ -54,7 +58,7 @@ class MainActivity : AppCompatActivity(){
     //Bluetooth Session
     var socket: BluetoothSocket?= null
 
-    var pubsub: Int = 0
+    var isPublisher: Boolean = true
     var audioCheck: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,9 +71,9 @@ class MainActivity : AppCompatActivity(){
         pubSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 //PUBLISH
-                pubsub = 0
+                isPublisher = true
                 subDiscoverySession?.close()
-                wifiAwareAttach(pubsub)
+                wifiAwareAttach(isPublisher)
             } else{
                 pubDiscoverySession?.close()
                 pubStatus.text = "Disconnected"
@@ -79,9 +83,9 @@ class MainActivity : AppCompatActivity(){
         subSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 //SUBSCRIBE
-                pubsub = 1
+                isPublisher = false
                 pubDiscoverySession?.close()
-                wifiAwareAttach(pubsub)
+                wifiAwareAttach(isPublisher)
             } else {
                 subDiscoverySession?.close()
                 subStatus.text = "Disconnected"
@@ -189,7 +193,7 @@ class MainActivity : AppCompatActivity(){
     }
 
     //WiFiAwareAttach
-    private fun wifiAwareAttach(pubsub: Int){
+    private fun wifiAwareAttach(isPublisher: Boolean){
 
         //Aware and RTT checks
         if(!this.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE)){
@@ -218,7 +222,7 @@ class MainActivity : AppCompatActivity(){
                 awareSession = session //make this class-level?
 
                 //pubsub Check
-                if(pubsub ==0){
+                if(isPublisher){
                     attachPublisher(awareSession)
                 } else{
                     attachSubscriber(awareSession)
@@ -235,23 +239,34 @@ class MainActivity : AppCompatActivity(){
 
         //CONFIG
         val config: PublishConfig = PublishConfig.Builder()
-            .setServiceName("JoshPub")
+            .setServiceName(SERVICE_NAME)
             .setRangingEnabled(true)
             .setTerminateNotificationEnabled(true)
             .setPublishType(PublishConfig.PUBLISH_TYPE_UNSOLICITED)
             .build()
 
-        awareSession?.publish(config,object:DiscoverySessionCallback(){
-            override fun onPublishStarted(session: PublishDiscoverySession) {
-                super.onPublishStarted(session)
-                pubDiscoverySession = session
-                pubStatus.text = "Connected"
-            }
+        try {
+            awareSession?.publish(config,object:DiscoverySessionCallback(){
+                override fun onPublishStarted(session: PublishDiscoverySession) {
+                    super.onPublishStarted(session)
+                    pubDiscoverySession = session
+                    pubStatus.text = "Connected"
+                }
 
-            override fun onMessageReceived(peerHandle: PeerHandle?, message: ByteArray?) {
-                super.onMessageReceived(peerHandle, message)
+                override fun onMessageReceived(peerHandle: PeerHandle?, message: ByteArray?) {
+                    super.onMessageReceived(peerHandle, message)
+                }
+            }, null)
+        } catch (e: java.lang.Exception) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+                // Permission is not granted
+                this.requestPermissions(arrayOf(android.Manifest.permission.ACCESS_COARSE_LOCATION, android.Manifest.permission.ACCESS_FINE_LOCATION), 1)
             }
-        }, null)
+        }
+
     }
 
     //Subscriber
@@ -259,7 +274,7 @@ class MainActivity : AppCompatActivity(){
 
         //CONFIG
         val config: SubscribeConfig = SubscribeConfig.Builder()
-            .setServiceName("JoshPub")
+            .setServiceName(SERVICE_NAME)
             .setSubscribeType(SubscribeConfig.SUBSCRIBE_TYPE_PASSIVE)
             .setTerminateNotificationEnabled(true)
             .setMinDistanceMm(0)
