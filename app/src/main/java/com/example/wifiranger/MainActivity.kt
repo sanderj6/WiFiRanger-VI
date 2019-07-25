@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity(){
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        callAsynchronousRanging()
+        //callAsynchronousRanging()
 
         pubSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -163,39 +163,39 @@ class MainActivity : AppCompatActivity(){
     }
 
     //Async Bluetooth Writing and Audio Feedback
-    fun callAsynchronousRanging() {
-        val handler = Handler()
-        val timer = Timer()
-        var audioMessage = ""
-
-        val doAsynchronousRangingTask = object : TimerTask() {
-            override fun run() {
-                handler.post(Runnable {
-                    try {
-                        doAsync{
-
-                            if (newDistance != oldDistance) { //check if distance has been updated
-                                txtDistance.text = newDistance.toString()
-                                audibleStatus.text = audioMessage
-
-                                outStream!!.write(newDistance)
-                                oldDistance = newDistance
-
-                                if (audioCheck == 1){
-                                    audioMessage = newDistance.toString() + " meters"
-                                    TTS(this@MainActivity, audioMessage, audioSwitch.isChecked)
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        // TODO Auto-generated catch block
-                        val testbreak = "butt"
-                    }
-                })
-            }
-        }
-        timer.schedule(doAsynchronousRangingTask, 0, 500) //execute in every 500 ms
-    }
+//    fun callAsynchronousRanging() {
+//        val handler = Handler()
+//        val timer = Timer()
+//        var audioMessage = ""
+//
+//        val doAsynchronousRangingTask = object : TimerTask() {
+//            override fun run() {
+//                handler.post(Runnable {
+//                    try {
+//                        doAsync{
+//
+//                            if (newDistance != oldDistance) { //check if distance has been updated
+//                                txtDistance.text = newDistance.toString()
+//                                audibleStatus.text = audioMessage
+//
+//                                outStream!!.write(newDistance)
+//                                oldDistance = newDistance
+//
+//                                if (audioCheck == 1){
+//                                    audioMessage = newDistance.toString() + " meters"
+//                                    TTS(this@MainActivity, audioMessage, audioSwitch.isChecked)
+//                                }
+//                            }
+//                        }
+//                    } catch (e: Exception) {
+//                        // TODO Auto-generated catch block
+//                        val testbreak = "butt"
+//                    }
+//                })
+//            }
+//        }
+//        timer.schedule(doAsynchronousRangingTask, 0, 500) //execute in every 500 ms
+//    }
 
     //WiFiAwareAttach
     private fun wifiAwareAttach(isPublisher: Boolean){
@@ -430,53 +430,53 @@ class MainActivity : AppCompatActivity(){
                     build()
                 }
 
-                if(ContextCompat.checkSelfPermission(self, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    wifiRttManager.startRanging(request, mainExecutor, object : RangingResultCallback() {
-                        override fun onRangingResults(results: List<RangingResult>) {
-                            for (result in results){
+                requestRange(wifiRttManager, request, peerHandle, outputStream)
 
-                                //Update Distance, don't crash
-                                if(result.status == RangingResult.STATUS_SUCCESS) {
-                                    //**WRITE BLUETOOTH HERE
-                                    newDistance = result.distanceMm// / 2000
-
-                                    if (prevRangeVals.size >= RANGE_RESULT_HISTORY_SIZE)
-                                    {
-                                        prevRangeVals.removeAt(0)
-                                    }
-                                    prevRangeVals.add(newDistance)
-
-
-
-
-
-
-                                    txtDistance.text = newDistance.toString()
-                                    txtDistanceSmallMean.text = PrevRangeValsAvgOfTop(SMALL_MEAN_SIZE).toString()
-                                    txtDistanceLargeMean.text = PrevRangeValsAvgOfTop(LARGE_MEAN_SIZE).toString()
-                                    if (outStream != null)
-                                    {
-                                        outStream!!.write(newDistance)
-                                    }
-                                    //outStream!!.flush()
-                                } else {
-                                    val breakme = result
-                                }
-
-                                //Restart Ranging if StopRanging button not pressed
-                                if (isRanging){
-                                    rangeStart(peerHandle, outputStream)
-                                }
-                            }
-                        }
-
-                        override fun onRangingFailure(code: Int) {
-                            Log.e("Error!", code.toString())
-                            rangeStart(peerHandle, outputStream)
-                        }
-                    })
-                }
             }
+        }
+    }
+
+    private fun requestRange(wifiRttManager: WifiRttManager, request: RangingRequest, peerHandle: PeerHandle, outputStream: OutputStream?)
+    {
+        if(ContextCompat.checkSelfPermission(self, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            wifiRttManager.startRanging(request, mainExecutor, object : RangingResultCallback() {
+                override fun onRangingResults(results: List<RangingResult>) {
+                    for (result in results) {
+
+                        //Update Distance, don't crash
+                        if (result.status == RangingResult.STATUS_SUCCESS) {
+                            //**WRITE BLUETOOTH HERE
+                            newDistance = result.distanceMm / 2// / 2000
+
+                            if (prevRangeVals.size >= RANGE_RESULT_HISTORY_SIZE) {
+                                prevRangeVals.removeAt(0)
+                            }
+                            prevRangeVals.add(newDistance)
+
+
+                            txtDistance.text = (newDistance.toFloat() / 1000.0).toString()
+                            txtDistanceSmallMean.text = (PrevRangeValsAvgOfTop(SMALL_MEAN_SIZE).toFloat() / 1000.0).toString()
+                            txtDistanceLargeMean.text = (PrevRangeValsAvgOfTop(LARGE_MEAN_SIZE).toFloat() / 1000.0).toString()
+                            if (outStream != null) {
+                                outStream!!.write(newDistance)
+                            }
+                            //outStream!!.flush()
+                        } else {
+                            val breakme = result
+                        }
+
+                        //Restart Ranging if StopRanging button not pressed
+                        if (isRanging) {
+                            requestRange(wifiRttManager, request, peerHandle, outputStream)
+                        }
+                    }
+                }
+
+                override fun onRangingFailure(code: Int) {
+                    Log.e("Error!", code.toString())
+                    requestRange(wifiRttManager, request, peerHandle, outputStream)
+                }
+            })
         }
     }
 
